@@ -24,11 +24,31 @@
       transform: translate(-50%, -50%);
     }
 
+    #main, #main *{
+      transition: color 0.4s;
+      text-align: center;
+    }
+
+    #main .option{
+      margin-top: 0.5em;
+      font-size: 70%;
+      cursor: pointer;
+       user-select: none;
+      opacity: 0.7;
+      transition: transform 0.4s, color 0.4s, opacity 0.2s;
+        transform: translateY(0);
+    }
+    #main .option:hover{
+      opacity: 1;
+      transform: translateY(-0.2em);
+    }
+
+
   </style>
   </head>
   <body>
     <div id="main">
-      Stress
+      <div id="main--text">Stress</div>
     </div>
   <script type="text/javascript" src="js/index.js">  </script>
   </body>
