@@ -1,0 +1,29 @@
+{
+  "name": "stressedchooseyourownadventure",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "compile": "tsc -p tsconfig.json",
+    "browserify": "browserify build/index.js -o public/js/index.js",
+    "build": "npm run compile && npm run browserify"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kaisalmon/stressedChooseYourOwnAdventure.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/kaisalmon/stressedChooseYourOwnAdventure/issues"
+  },
+  "homepage": "https://github.com/kaisalmon/stressedChooseYourOwnAdventure#readme",
+  "devDependencies": {
+    "browserify": "^16.5.0",
+    "typescript": "^3.6.3"
+  }
+}
