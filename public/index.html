@@ -36,7 +36,14 @@
        user-select: none;
       opacity: 0.7;
       transition: transform 0.4s, color 0.4s, opacity 0.2s;
-        transform: translateY(0);
+      transform: translateY(0);
+    }
+    #main .option.locked::before{
+      content:"🔒";
+    }
+    #main .option.locked, #main .option.locked:hover{
+     opacity: 0.5;
+     cursor: not-allowed;
     }
     #main .option:hover{
       opacity: 1;

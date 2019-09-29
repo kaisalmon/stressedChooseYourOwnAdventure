@@ -12374,6 +12374,7 @@ class GameState {
         if (!nextPage)
             throw new Error("Cannot follow link " + opt.link);
         this.currentPage = nextPage;
+        this.state = Object.assign(Object.assign({}, this.state), opt.state);
         if (this.onUpdate) {
             this.onUpdate(this);
         }
@@ -12393,6 +12394,17 @@ class GamePage {
 }
 exports.GamePage = GamePage;
 class GameOption {
+    constructor() {
+        this.state = {};
+        this.cond = {};
+    }
+    isLocked(gs) {
+        for (let key in this.cond) {
+            if (gs.state[key] != this.cond[key])
+                return true;
+        }
+        return false;
+    }
 }
 exports.GameOption = GameOption;
 
@@ -12424,9 +12436,12 @@ function addOption(el, opt, gameState) {
     return __awaiter(this, void 0, void 0, function* () {
         $('<div/>')
             .addClass('option')
+            .addClass(opt.isLocked(gameState) ? 'locked' : '')
             .text(opt.text)
             .appendTo(el)
             .click(() => {
+            if (opt.isLocked(gameState))
+                return;
             gameState.processOption(opt);
         });
     });
@@ -12499,6 +12514,16 @@ function processRow(row, book) {
                 const gotoRegexMatch = gotoRegex.exec($t);
                 if (gotoRegexMatch) {
                     option.link = gotoRegexMatch[1];
+                }
+                const setRegex = /\s*SET\s+(.*)/;
+                const setRegexMatch = setRegex.exec($t);
+                if (setRegexMatch) {
+                    option.state[setRegexMatch[1]] = setRegexMatch[2] || 1;
+                }
+                const ifRegex = /\s*IF\s+(.*)/;
+                const ifRegexMatch = ifRegex.exec($t);
+                if (ifRegexMatch) {
+                    option.cond[ifRegexMatch[1]] = ifRegexMatch[2] || 1;
                 }
             }
             page.options.push(option);

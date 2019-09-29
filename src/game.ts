@@ -8,6 +8,7 @@ class GameState{
     const nextPage = this.book.pages[opt.link];
     if(!nextPage) throw new Error("Cannot follow link "+opt.link)
     this.currentPage = nextPage;
+    this.state = {...this.state, ...opt.state};
     if(this.onUpdate){
       this.onUpdate(this);
     }
@@ -24,6 +25,15 @@ class GamePage{
 class GameOption{
   text: string
   link: string
+  state: { [id: string] : string|number; } = {}
+  cond: { [id: string] : string|number; } = {}
+
+  public isLocked(gs:GameState):boolean{
+    for(let key in this.cond){
+      if(gs.state[key]!=this.cond[key]) return true;
+    }
+    return false;
+  }
 }
 
 

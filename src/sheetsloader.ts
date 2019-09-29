@@ -41,6 +41,18 @@ function processRow(row: GoogleSheetCell[], book:GameBook){
         if(gotoRegexMatch){
           option.link = gotoRegexMatch[1];
         }
+
+        const setRegex = /\s*SET\s+(.*)/;
+        const setRegexMatch = setRegex.exec($t);
+        if(setRegexMatch){
+          option.state[setRegexMatch[1]] =  setRegexMatch[2]||1;
+        }
+
+        const ifRegex = /\s*IF\s+(.*)/;
+        const ifRegexMatch = ifRegex.exec($t);
+        if(ifRegexMatch){
+          option.cond[ifRegexMatch[1]] =  ifRegexMatch[2]||1;
+        }
       }
       page.options.push(option);
     }

@@ -14,9 +14,11 @@ async function setText(el: HTMLElement, text:string):Promise<void>{
 async function addOption(el: HTMLElement, opt:GameOption, gameState:GameState):Promise<void>{
   $('<div/>')
     .addClass('option')
+    .addClass(opt.isLocked(gameState) ? 'locked' : '')
     .text(opt.text)
     .appendTo(el)
     .click(()=>{
+      if(opt.isLocked(gameState)) return;
       gameState.processOption(opt);
     })
 }
