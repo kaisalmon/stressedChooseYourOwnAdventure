@@ -27,10 +27,17 @@ class GameOption{
   link: string
   state: { [id: string] : string|number; } = {}
   cond: { [id: string] : string|number; } = {}
+  showCond: { [id: string] : string|number; } = {}
 
   public isLocked(gs:GameState):boolean{
     for(let key in this.cond){
       if(gs.state[key]!=this.cond[key]) return true;
+    }
+    return false;
+  }
+  public isHidden(gs:GameState):boolean{
+    for(let key in this.showCond){
+      if(gs.state[key]!=this.showCond[key]) return true;
     }
     return false;
   }

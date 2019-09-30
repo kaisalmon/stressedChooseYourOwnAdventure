@@ -1493,20 +1493,7 @@ module.exports = {
   trim: trim
 };
 
-},{"./helpers/bind":16,"is-buffer":26}],26:[function(require,module,exports){
-/*!
- * Determine if an object is a Buffer
- *
- * @author   Feross Aboukhadijeh <https://feross.org>
- * @license  MIT
- */
-
-module.exports = function isBuffer (obj) {
-  return obj != null && obj.constructor != null &&
-    typeof obj.constructor.isBuffer === 'function' && obj.constructor.isBuffer(obj)
-}
-
-},{}],27:[function(require,module,exports){
+},{"./helpers/bind":16,"is-buffer":27}],26:[function(require,module,exports){
 'use strict';
 
 const createAbortError = () => {
@@ -1575,6 +1562,19 @@ delay.createWithTimers = ({clearTimeout, setTimeout}) => {
 module.exports = delay;
 // TODO: Remove this for the next major release
 module.exports.default = delay;
+
+},{}],27:[function(require,module,exports){
+/*!
+ * Determine if an object is a Buffer
+ *
+ * @author   Feross Aboukhadijeh <https://feross.org>
+ * @license  MIT
+ */
+
+module.exports = function isBuffer (obj) {
+  return obj != null && obj.constructor != null &&
+    typeof obj.constructor.isBuffer === 'function' && obj.constructor.isBuffer(obj)
+}
 
 },{}],28:[function(require,module,exports){
 /*!
@@ -12397,10 +12397,18 @@ class GameOption {
     constructor() {
         this.state = {};
         this.cond = {};
+        this.showCond = {};
     }
     isLocked(gs) {
         for (let key in this.cond) {
             if (gs.state[key] != this.cond[key])
+                return true;
+        }
+        return false;
+    }
+    isHidden(gs) {
+        for (let key in this.showCond) {
+            if (gs.state[key] != this.showCond[key])
                 return true;
         }
         return false;
@@ -12434,6 +12442,8 @@ function setText(el, text) {
 }
 function addOption(el, opt, gameState) {
     return __awaiter(this, void 0, void 0, function* () {
+        if (opt.isHidden(gameState))
+            return;
         $('<div/>')
             .addClass('option')
             .addClass(opt.isLocked(gameState) ? 'locked' : '')
@@ -12476,7 +12486,7 @@ if (document.addEventListener)
 else
     window.onload = autorun;
 
-},{"./game":30,"./sheetsloader":32,"delay":27,"jquery":28}],32:[function(require,module,exports){
+},{"./game":30,"./sheetsloader":32,"delay":26,"jquery":28}],32:[function(require,module,exports){
 "use strict";
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
@@ -12510,20 +12520,25 @@ function processRow(row, book) {
             option.text = optionText;
             for (let effectCell of effectCells) {
                 const { content: { $t } } = effectCell;
-                const gotoRegex = /\s*GOTO\s+(.*)/;
+                const gotoRegex = /^\s*GOTO\s+(.*)/;
                 const gotoRegexMatch = gotoRegex.exec($t);
                 if (gotoRegexMatch) {
                     option.link = gotoRegexMatch[1];
                 }
-                const setRegex = /\s*SET\s+(.*)/;
+                const setRegex = /^\s*SET\s+(.*)/;
                 const setRegexMatch = setRegex.exec($t);
                 if (setRegexMatch) {
                     option.state[setRegexMatch[1]] = setRegexMatch[2] || 1;
                 }
-                const ifRegex = /\s*IF\s+(.*)/;
+                const ifRegex = /^\s*IF\s+(.*)/;
                 const ifRegexMatch = ifRegex.exec($t);
                 if (ifRegexMatch) {
                     option.cond[ifRegexMatch[1]] = ifRegexMatch[2] || 1;
+                }
+                const showIfRegex = /^\s*SHOWIF\s+(.*)/;
+                const showIfRegexMatch = showIfRegex.exec($t);
+                if (showIfRegexMatch) {
+                    option.showCond[showIfRegexMatch[1]] = showIfRegexMatch[2] || 1;
                 }
             }
             page.options.push(option);

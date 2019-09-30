@@ -12,6 +12,7 @@ async function setText(el: HTMLElement, text:string):Promise<void>{
 }
 
 async function addOption(el: HTMLElement, opt:GameOption, gameState:GameState):Promise<void>{
+  if(opt.isHidden(gameState))return
   $('<div/>')
     .addClass('option')
     .addClass(opt.isLocked(gameState) ? 'locked' : '')
@@ -21,6 +22,7 @@ async function addOption(el: HTMLElement, opt:GameOption, gameState:GameState):P
       if(opt.isLocked(gameState)) return;
       gameState.processOption(opt);
     })
+
 }
 
 async function updatePage(el: HTMLElement, gameState:GameState):Promise<void>{

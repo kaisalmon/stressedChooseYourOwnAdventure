@@ -36,22 +36,27 @@ function processRow(row: GoogleSheetCell[], book:GameBook){
       option.text = optionText;
       for(let effectCell of effectCells){
         const {content:{$t}} = effectCell;
-        const gotoRegex = /\s*GOTO\s+(.*)/;
+        const gotoRegex = /^\s*GOTO\s+(.*)/;
         const gotoRegexMatch = gotoRegex.exec($t);
         if(gotoRegexMatch){
           option.link = gotoRegexMatch[1];
         }
 
-        const setRegex = /\s*SET\s+(.*)/;
+        const setRegex = /^\s*SET\s+(.*)/;
         const setRegexMatch = setRegex.exec($t);
         if(setRegexMatch){
           option.state[setRegexMatch[1]] =  setRegexMatch[2]||1;
         }
 
-        const ifRegex = /\s*IF\s+(.*)/;
+        const ifRegex = /^\s*IF\s+(.*)/;
         const ifRegexMatch = ifRegex.exec($t);
         if(ifRegexMatch){
           option.cond[ifRegexMatch[1]] =  ifRegexMatch[2]||1;
+        }
+        const showIfRegex = /^\s*SHOWIF\s+(.*)/;
+        const showIfRegexMatch = showIfRegex.exec($t);
+        if(showIfRegexMatch){
+          option.showCond[showIfRegexMatch[1]] =  showIfRegexMatch[2]||1;
         }
       }
       page.options.push(option);
