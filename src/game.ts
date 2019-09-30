@@ -5,7 +5,8 @@ class GameState{
   onUpdate:(gs:GameState)=>void;
 
   public processOption(opt: GameOption){
-    const nextPage = this.book.pages[opt.link];
+    const {prefix} = this.currentPage;
+    const nextPage = this.book.pages[prefix + opt.link] || this.book.pages[opt.link];
     if(!nextPage) throw new Error("Cannot follow link "+opt.link)
     this.currentPage = nextPage;
     this.state = {...this.state, ...opt.state};
@@ -20,6 +21,7 @@ class GameBook{
 class GamePage{
   id: string
   text: string
+  prefix: string
   options: GameOption[] = []
 }
 class GameOption{

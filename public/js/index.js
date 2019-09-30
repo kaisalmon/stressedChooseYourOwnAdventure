@@ -12370,7 +12370,8 @@ class GameState {
         this.state = {};
     }
     processOption(opt) {
-        const nextPage = this.book.pages[opt.link];
+        const { prefix } = this.currentPage;
+        const nextPage = this.book.pages[prefix + opt.link] || this.book.pages[opt.link];
         if (!nextPage)
             throw new Error("Cannot follow link " + opt.link);
         this.currentPage = nextPage;
@@ -12500,16 +12501,17 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 Object.defineProperty(exports, "__esModule", { value: true });
 const axios_1 = require("axios");
 const game_1 = require("./game");
-const DEFAULT_URL = 'https://spreadsheets.google.com/feeds/cells/1GpYB4WsAnJ9ATmot7agz2B1eSVgyaOuhLCkwIheyvgk/1/public/full?alt=json';
-function processRow(row, book) {
+const DEFAULT_URL = 'https://spreadsheets.google.com/feeds/cells/1GpYB4WsAnJ9ATmot7agz2B1eSVgyaOuhLCkwIheyvgk/{ID}/public/full?alt=json';
+function processRow(row, book, prefix) {
     const [idCell, textCell, ...effectCells] = row;
-    const pageId = idCell.content.$t;
+    const pageId = prefix + idCell.content.$t;
     if (!book.pages[pageId]) {
         book.pages[pageId] = new game_1.GamePage();
         const pageText = textCell && textCell.content.$t;
         if (!pageText)
             throw new Error("Can't find page text");
         book.pages[pageId].text = pageText;
+        book.pages[pageId].prefix = prefix;
         return;
     }
     else {
@@ -12564,10 +12566,22 @@ function toRows(cells) {
 function loadBook(sheetUrl = DEFAULT_URL) {
     return __awaiter(this, void 0, void 0, function* () {
         const book = new game_1.GameBook();
-        const { data: { feed: { entry } } } = yield axios_1.default.get(sheetUrl);
-        const [titles, ...rows] = toRows(entry);
-        for (let row of rows) {
-            processRow(row, book);
+        let i = 1;
+        while (true) {
+            try {
+                const result = yield axios_1.default.get(sheetUrl.replace('{ID}', `${i++}`));
+                const { data: { feed: { title, entry } } } = result;
+                console.log(result);
+                const [titles, ...rows] = toRows(entry);
+                for (let row of rows) {
+                    processRow(row, book, title.$t);
+                }
+                console.log(book);
+            }
+            catch (e) {
+                console.error(e);
+                break;
+            }
         }
         return book;
     });
