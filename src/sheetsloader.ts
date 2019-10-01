@@ -26,6 +26,9 @@ function parseEffect(str:string): GameEffect{
   if(keyword === 'GOTO') effect.goto = args[0]
   else if(keyword === 'DEBUG') effect.debug = args[0]
   else if(keyword === 'SET') effect.state[args[0]] = args[1]
+  else if(keyword === 'TIME') effect.time = parseFloat(args[0]) * 1000
+  else if(keyword === 'STRESS_SCALE') effect.stress_scale = parseFloat(args[0]) * 1000
+  else if(keyword === 'STRESS') effect.stress = parseInt(args[0], 10)
   else throw new Error("Could not parse effect: "+str);
 
   return effect;
@@ -35,6 +38,7 @@ function parseAndApplyOptionAttribute(opt:GameOption, str:string): void{
   const [keyword, ...args] = str.trim().split(/\s+/);
 
   if(keyword === 'IF') opt.cond[args[0]] = args[1]
+  else if(keyword === 'DEFAULT') opt.default = true;
   else if(keyword === 'SHOWIF') opt.showCond[args[0]] = args[1]
   else opt.effects.push(parseEffect(str));
 }
@@ -43,13 +47,14 @@ function parseAndApplyPageAttribute(page:GamePage, str:string): void{
   const [keyword, ...args] = str.trim().split(/\s+/);
 
   if(keyword === 'START') page.start = true;
+  if(keyword === 'UNTIMED') page.untimed = true;
   else page.effects.push(parseEffect(str));
 }
 
 
 function processRow(row: GoogleSheetCell[], book:GameBook, prefix:string){
   const [idCell, textCell, ...effectCells] = row;
-
+  if(idCell.content.$t === "")return;
   const pageId = prefix+idCell.content.$t;
   if(!book.pages[pageId]){
     book.pages[pageId] = new GamePage();

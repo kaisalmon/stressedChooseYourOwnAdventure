@@ -5,11 +5,14 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>Choose your own adventure</title>
   <link href="https://fonts.googleapis.com/css?family=Grenze&display=swap" rel="stylesheet">
+  <link href="./css/pie.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.7.2/animate.min.css" rel="stylesheet">
   <style type="text/css">
     html, body{
       background: black;
       color: white;
       font-family: Grenze;
+      --stressColor: red;
     }
     * {
       box-sizing: border-box;
@@ -49,11 +52,17 @@
       opacity: 1;
       transform: translateY(-0.2em);
     }
-
-
+    .option.default.highlight{
+      color: var(--stressColor);
+    }
   </style>
   </head>
   <body>
+    <div class="pie">
+      <div id="stress" class="pie__segment" style="--offset: 0; --value: 0; --bg: var(--stressColor);"></div>
+      <div id="elapsedTime" class="pie__segment" style="--offset: 0; --value: 0; --bg: white;"></div>
+      <di  id="remainingTime" class="pie__segment" style="--offset: 0; --value: 0; --bg: #222;"></div>
+    </div>
     <div id="main">
       <div id="main--text">Stress</div>
     </div>

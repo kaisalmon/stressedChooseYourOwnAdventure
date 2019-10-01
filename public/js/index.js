@@ -12365,14 +12365,37 @@ process.umask = function() { return 0; };
 },{}],30:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+const TIMER_RES = 50;
 class GameState {
     constructor() {
+        this.elapsedTime = 0;
         this.state = {};
+        this.stress = 0;
     }
     setPage(page) {
         this._currentPage = page;
         for (let eff of page.effects) {
             eff.execute(this.currentPage, this);
+        }
+        if (this.intervalId)
+            clearInterval(this.intervalId);
+        if ((this.time && this.stress_scale)) {
+            this.elapsedTime = this.stress * this.stress_scale;
+            this.intervalId = setInterval(() => {
+                this.elapsedTime += TIMER_RES;
+                if (this.onTimerUpdate)
+                    this.onTimerUpdate(this, this.elapsedTime);
+                if (!this.time || this.elapsedTime >= this.time) {
+                    if (this.intervalId)
+                        clearInterval(this.intervalId);
+                    const opt = this.currentPage.getDefaultOption(this);
+                    if (opt)
+                        this.processOption(opt);
+                }
+            }, TIMER_RES);
+        }
+        else {
+            this.elapsedTime = 0;
         }
     }
     get currentPage() {
@@ -12382,8 +12405,8 @@ class GameState {
         for (let eff of opt.effects) {
             eff.execute(this.currentPage, this);
         }
-        if (this.onUpdate) {
-            this.onUpdate(this);
+        if (this.onPageChanged) {
+            this.onPageChanged(this);
         }
     }
 }
@@ -12400,6 +12423,12 @@ class GamePage {
         this.effects = [];
         this.start = false;
     }
+    getDefaultOption(gs) {
+        const options = this.options
+            .filter(o => !o.isLocked(gs))
+            .filter(o => !o.isHidden(gs));
+        return options.find(o => o.default) || options[0];
+    }
 }
 exports.GamePage = GamePage;
 class GameOption {
@@ -12407,6 +12436,7 @@ class GameOption {
         this.effects = [];
         this.cond = {};
         this.showCond = {};
+        this.default = false;
     }
     isLocked(gs) {
         for (let key in this.cond) {
@@ -12429,6 +12459,7 @@ class GameEffect {
         this.state = {};
     }
     execute(page, gs) {
+        gs.state = Object.assign(Object.assign({}, gs.state), this.state);
         if (this.goto) {
             const { prefix } = page;
             const nextPage = gs.book.pages[prefix + this.goto] || gs.book.pages[this.goto];
@@ -12436,10 +12467,16 @@ class GameEffect {
                 throw new Error("Cannot follow link " + this.goto);
             gs.setPage(nextPage);
         }
-        gs.state = Object.assign(Object.assign({}, gs.state), this.state);
         if (this.debug) {
             alert(this.debug);
+            console.log({ gameState: gs });
         }
+        if (this.stress)
+            gs.stress += this.stress;
+        if (this.stress_scale)
+            gs.stress_scale = this.stress_scale;
+        if (this.time)
+            gs.time = this.time;
     }
 }
 exports.GameEffect = GameEffect;
@@ -12460,6 +12497,7 @@ const sheetsloader_1 = require("./sheetsloader");
 const game_1 = require("./game");
 const $ = require("jquery");
 const delay_1 = require("delay");
+let blockInput = false;
 function setText(el, text) {
     return __awaiter(this, void 0, void 0, function* () {
         el.style.color = "black";
@@ -12468,17 +12506,20 @@ function setText(el, text) {
         el.style.color = "white";
     });
 }
-function addOption(el, opt, gameState) {
+function addOption(el, opt, gameState, isDefault) {
     return __awaiter(this, void 0, void 0, function* () {
         if (opt.isHidden(gameState))
             return;
         $('<div/>')
             .addClass('option')
             .addClass(opt.isLocked(gameState) ? 'locked' : '')
+            .addClass(isDefault ? 'default' : '')
             .text(opt.text)
             .appendTo(el)
             .click(() => {
             if (opt.isLocked(gameState))
+                return;
+            if (blockInput)
                 return;
             gameState.processOption(opt);
         });
@@ -12487,28 +12528,67 @@ function addOption(el, opt, gameState) {
 function updatePage(el, gameState) {
     return __awaiter(this, void 0, void 0, function* () {
         const page = gameState.currentPage;
+        blockInput = true;
         yield setText(el, page.text);
+        blockInput = false;
+        const defaultOption = page.getDefaultOption(gameState);
         for (let opt of page.options) {
-            addOption(el, opt, gameState);
+            addOption(el, opt, gameState, defaultOption === opt);
         }
     });
 }
+function updatePie({ stressValue, elapsedValue, remainingValue }) {
+    $('#stress')[0].style.setProperty('--value', `${stressValue}`);
+    $('#stress')[0].style.setProperty('--offset', '0');
+    $('#stress')[0].style.setProperty('--over50', stressValue > 50 ? '1' : '0');
+    $('#elapsedTime')[0].style.setProperty('--value', `${elapsedValue}`);
+    $('#elapsedTime')[0].style.setProperty('--offset', `${stressValue}`);
+    $('#elapsedTime')[0].style.setProperty('--over50', elapsedValue > 50 ? '1' : '0');
+    $('#remainingTime')[0].style.setProperty('--value', `${remainingValue}`);
+    $('#remainingTime')[0].style.setProperty('--offset', `${stressValue + elapsedValue}`);
+    $('#remainingTime')[0].style.setProperty('--over50', remainingValue > 50 ? '1' : '0');
+}
 function autorun() {
     return __awaiter(this, void 0, void 0, function* () {
-        const book = yield sheetsloader_1.loadBook();
-        const gameState = new game_1.GameState();
-        gameState.book = book;
-        gameState.setPage(book.startPage);
-        const el = document.getElementById('main');
-        if (!el)
-            throw new Error("Cannot find main element");
-        yield delay_1.default(800);
-        updatePage(el, gameState);
-        gameState.onUpdate = (gs) => {
-            updatePage(el, gs);
-        };
+        try {
+            const book = yield sheetsloader_1.loadBook();
+            const gameState = new game_1.GameState();
+            gameState.book = book;
+            gameState.setPage(book.startPage);
+            const el = document.getElementById('main');
+            if (!el)
+                throw new Error("Cannot find main element");
+            yield delay_1.default(800);
+            updatePage(el, gameState);
+            gameState.onPageChanged = (gs) => {
+                updatePage(el, gs);
+            };
+            gameState.onTimerUpdate = (gs, t) => {
+                if (!gs.time || !gs.stress_scale || !gs.currentPage.getDefaultOption(gs)) {
+                    $('.pie').fadeOut();
+                    return;
+                }
+                $('.pie').fadeIn();
+                $('.pie').removeClass('heartBeat animated');
+                const stressValue = (gs.stress * gs.stress_scale) / gs.time * 100;
+                const elapsedValue = (gs.elapsedTime - gs.stress * gs.stress_scale) / gs.time * 100;
+                ;
+                const remainingValue = (gs.time - gs.elapsedTime) / gs.time * 100;
+                updatePie({ stressValue, elapsedValue, remainingValue });
+                if (remainingValue < 20) {
+                    $('.option.default').addClass('highlight');
+                    $('.option.default').addClass('heartBeat animated');
+                    $('.pie').addClass('heartBeat animated');
+                }
+            };
+        }
+        catch (err) {
+            console.error(err);
+            alert(err);
+        }
     });
 }
+console.log({ autorun });
 if (document.addEventListener)
     document.addEventListener("DOMContentLoaded", autorun, false);
 else
@@ -12538,6 +12618,12 @@ function parseEffect(str) {
         effect.debug = args[0];
     else if (keyword === 'SET')
         effect.state[args[0]] = args[1];
+    else if (keyword === 'TIME')
+        effect.time = parseFloat(args[0]) * 1000;
+    else if (keyword === 'STRESS_SCALE')
+        effect.stress_scale = parseFloat(args[0]) * 1000;
+    else if (keyword === 'STRESS')
+        effect.stress = parseInt(args[0], 10);
     else
         throw new Error("Could not parse effect: " + str);
     return effect;
@@ -12546,6 +12632,8 @@ function parseAndApplyOptionAttribute(opt, str) {
     const [keyword, ...args] = str.trim().split(/\s+/);
     if (keyword === 'IF')
         opt.cond[args[0]] = args[1];
+    else if (keyword === 'DEFAULT')
+        opt.default = true;
     else if (keyword === 'SHOWIF')
         opt.showCond[args[0]] = args[1];
     else
@@ -12560,6 +12648,8 @@ function parseAndApplyPageAttribute(page, str) {
 }
 function processRow(row, book, prefix) {
     const [idCell, textCell, ...effectCells] = row;
+    if (idCell.content.$t === "")
+        return;
     const pageId = prefix + idCell.content.$t;
     if (!book.pages[pageId]) {
         book.pages[pageId] = new game_1.GamePage();
