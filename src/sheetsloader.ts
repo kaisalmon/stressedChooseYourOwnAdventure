@@ -1,5 +1,5 @@
 import axios from 'axios'
-import {GameBook, GamePage, GameOption} from './game'
+import {GameBook, GamePage, GameOption, GameEffect} from './game'
 
 const DEFAULT_URL = 'https://spreadsheets.google.com/feeds/cells/1GpYB4WsAnJ9ATmot7agz2B1eSVgyaOuhLCkwIheyvgk/{ID}/public/full?alt=json';
 
@@ -18,6 +18,32 @@ interface GoogleSheet{
   }
 }
 
+function parseEffect(str:string): GameEffect{
+  const effect = new GameEffect();
+  const gotoRegex = /^\s*GOTO\s+(\w*)/;
+  const gotoRegexMatch = gotoRegex.exec(str);
+  if(gotoRegexMatch){
+    effect.goto = gotoRegexMatch[1];
+    return effect;
+  }
+
+  const debugRegex = /^\s*DEBUG\s+(\w*)/;
+  const debugRegexMatch = debugRegex.exec(str);
+  if(debugRegexMatch){
+    effect.debug = debugRegexMatch[1];
+    return effect;
+  }
+
+  const setRegex = /^\s*SET\s+(\w*)\s+(\w*)/;
+  const setRegexMatch = setRegex.exec(str);
+  if(setRegexMatch){
+    effect.state[setRegexMatch[1]] =  setRegexMatch[2]||1;
+    return effect;
+  }
+
+  throw new Error("Could not parse effect: "+str);
+}
+
 function processRow(row: GoogleSheetCell[], book:GameBook, prefix:string){
   const [idCell, textCell, ...effectCells] = row;
 
@@ -29,39 +55,34 @@ function processRow(row: GoogleSheetCell[], book:GameBook, prefix:string){
     if(!pageText) throw new Error("Can't find page text");
     book.pages[pageId].text = pageText;
     book.pages[pageId].prefix = prefix;
+    for(let effectCell of effectCells){
+      const {content:{$t}} = effectCell;
+      book.pages[pageId].effects.push(parseEffect($t));
+    }
     return;
   }else{
     const optionText = textCell && textCell.content.$t;
+    const page = book.pages[pageId]
     if(optionText){
-      const page = book.pages[pageId]
       const option = new GameOption()
+      page.options.push(option);
       option.text = optionText;
       for(let effectCell of effectCells){
         const {content:{$t}} = effectCell;
-        const gotoRegex = /^\s*GOTO\s+(\w*)/;
-        const gotoRegexMatch = gotoRegex.exec($t);
-        if(gotoRegexMatch){
-          option.link = gotoRegexMatch[1];
-        }
-
-        const setRegex = /^\s*SET\s+(\w*)\s+(\w*)/;
-        const setRegexMatch = setRegex.exec($t);
-        if(setRegexMatch){
-          option.state[setRegexMatch[1]] =  setRegexMatch[2]||1;
-        }
-
         const ifRegex = /^\s*IF\s+(\w*)\s+(\w*)/;
         const ifRegexMatch = ifRegex.exec($t);
         if(ifRegexMatch){
           option.cond[ifRegexMatch[1]] =  ifRegexMatch[2]||1;
+          return;
         }
         const showIfRegex = /^\s*SHOWIF\s+(\w*)\s+(\w*)/;
         const showIfRegexMatch = showIfRegex.exec($t);
         if(showIfRegexMatch){
           option.showCond[showIfRegexMatch[1]] = showIfRegexMatch[2]||1;
+          return;
         }
+        option.effects.push(parseEffect($t));
       }
-      page.options.push(option);
     }
   }
 }
@@ -82,24 +103,44 @@ function toRows(cells: GoogleSheetCell[]): GoogleSheetCell[][]{
     return results;
 }
 
-async function loadBook(sheetUrl:string=DEFAULT_URL):Promise<GameBook>{
-  const book = new GameBook();
-  let i = 1;
-  while(true){
-    try{
-      const result = await  axios.get<GoogleSheet>(sheetUrl.replace('{ID}',`${i++}`))
+function loadSheets({sheetUrl, book, batchSize, offset}:{sheetUrl:string, book:GameBook, batchSize:number, offset:number}):Promise<boolean>{
+  const promises:Promise<boolean>[] = []
+  for(let i = 0; i<batchSize; i++){
+    const promise = axios.get<GoogleSheet>(sheetUrl.replace('{ID}',`${i+offset}`))
+    .then(result => {
       const {data:{feed:{title, entry}}} = result
-      console.log(result)
       const [titles, ...rows] = toRows(entry);
       for(let row of rows){
         processRow(row, book, title.$t)
       }
-      console.log(book)
-    }catch(e){
-      console.error(e)
-      break;
-    }
+      return true
+    }).catch((err)=>{
+      if(err.message === "Network Error")return false
+      throw err
+    });
+    promises.push(promise);
   }
+  return Promise.all(promises).then(([...hadData])=>{
+    return hadData.every(x=>x===true)
+  });
+}
+
+
+async function loadBook(sheetUrl:string=DEFAULT_URL):Promise<GameBook>{
+  const BATCHSIZE = 5;
+  const book = new GameBook();
+  let offset = 1;
+  while(true){
+      const hadData = await loadSheets({sheetUrl, book, batchSize: BATCHSIZE, offset: offset})
+      offset+=BATCHSIZE;
+      if(!hadData){
+        break;
+      }
+      if(offset > 50){
+          throw new Error("Over 50 pages, or more likely loading bug")
+      }
+  }
+  console.log(book)
   return book;
 }
 

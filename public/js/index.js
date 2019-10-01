@@ -12369,13 +12369,19 @@ class GameState {
     constructor() {
         this.state = {};
     }
+    setPage(page) {
+        this._currentPage = page;
+        for (let eff of page.effects) {
+            eff.execute(this.currentPage, this);
+        }
+    }
+    get currentPage() {
+        return this._currentPage;
+    }
     processOption(opt) {
-        const { prefix } = this.currentPage;
-        const nextPage = this.book.pages[prefix + opt.link] || this.book.pages[opt.link];
-        if (!nextPage)
-            throw new Error("Cannot follow link " + opt.link);
-        this.currentPage = nextPage;
-        this.state = Object.assign(Object.assign({}, this.state), opt.state);
+        for (let eff of opt.effects) {
+            eff.execute(this.currentPage, this);
+        }
         if (this.onUpdate) {
             this.onUpdate(this);
         }
@@ -12391,12 +12397,13 @@ exports.GameBook = GameBook;
 class GamePage {
     constructor() {
         this.options = [];
+        this.effects = [];
     }
 }
 exports.GamePage = GamePage;
 class GameOption {
     constructor() {
-        this.state = {};
+        this.effects = [];
         this.cond = {};
         this.showCond = {};
     }
@@ -12416,6 +12423,25 @@ class GameOption {
     }
 }
 exports.GameOption = GameOption;
+class GameEffect {
+    constructor() {
+        this.state = {};
+    }
+    execute(page, gs) {
+        if (this.goto) {
+            const { prefix } = page;
+            const nextPage = gs.book.pages[prefix + this.goto] || gs.book.pages[this.goto];
+            if (!nextPage)
+                throw new Error("Cannot follow link " + this.goto);
+            gs.setPage(nextPage);
+        }
+        gs.state = Object.assign(Object.assign({}, gs.state), this.state);
+        if (this.debug) {
+            alert(this.debug);
+        }
+    }
+}
+exports.GameEffect = GameEffect;
 
 },{}],31:[function(require,module,exports){
 "use strict";
@@ -12471,7 +12497,7 @@ function autorun() {
         const book = yield sheetsloader_1.loadBook();
         const gameState = new game_1.GameState();
         gameState.book = book;
-        gameState.currentPage = Object.values(book.pages)[0];
+        gameState.setPage(Object.values(book.pages)[0]);
         const el = document.getElementById('main');
         if (!el)
             throw new Error("Cannot find main element");
@@ -12502,6 +12528,28 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const axios_1 = require("axios");
 const game_1 = require("./game");
 const DEFAULT_URL = 'https://spreadsheets.google.com/feeds/cells/1GpYB4WsAnJ9ATmot7agz2B1eSVgyaOuhLCkwIheyvgk/{ID}/public/full?alt=json';
+function parseEffect(str) {
+    const effect = new game_1.GameEffect();
+    const gotoRegex = /^\s*GOTO\s+(\w*)/;
+    const gotoRegexMatch = gotoRegex.exec(str);
+    if (gotoRegexMatch) {
+        effect.goto = gotoRegexMatch[1];
+        return effect;
+    }
+    const debugRegex = /^\s*DEBUG\s+(\w*)/;
+    const debugRegexMatch = debugRegex.exec(str);
+    if (debugRegexMatch) {
+        effect.debug = debugRegexMatch[1];
+        return effect;
+    }
+    const setRegex = /^\s*SET\s+(\w*)\s+(\w*)/;
+    const setRegexMatch = setRegex.exec(str);
+    if (setRegexMatch) {
+        effect.state[setRegexMatch[1]] = setRegexMatch[2] || 1;
+        return effect;
+    }
+    throw new Error("Could not parse effect: " + str);
+}
 function processRow(row, book, prefix) {
     const [idCell, textCell, ...effectCells] = row;
     const pageId = prefix + idCell.content.$t;
@@ -12512,38 +12560,35 @@ function processRow(row, book, prefix) {
             throw new Error("Can't find page text");
         book.pages[pageId].text = pageText;
         book.pages[pageId].prefix = prefix;
+        for (let effectCell of effectCells) {
+            const { content: { $t } } = effectCell;
+            book.pages[pageId].effects.push(parseEffect($t));
+        }
         return;
     }
     else {
         const optionText = textCell && textCell.content.$t;
+        const page = book.pages[pageId];
         if (optionText) {
-            const page = book.pages[pageId];
             const option = new game_1.GameOption();
+            page.options.push(option);
             option.text = optionText;
             for (let effectCell of effectCells) {
                 const { content: { $t } } = effectCell;
-                const gotoRegex = /^\s*GOTO\s+(\w*)/;
-                const gotoRegexMatch = gotoRegex.exec($t);
-                if (gotoRegexMatch) {
-                    option.link = gotoRegexMatch[1];
-                }
-                const setRegex = /^\s*SET\s+(\w*)\s+(\w*)/;
-                const setRegexMatch = setRegex.exec($t);
-                if (setRegexMatch) {
-                    option.state[setRegexMatch[1]] = setRegexMatch[2] || 1;
-                }
                 const ifRegex = /^\s*IF\s+(\w*)\s+(\w*)/;
                 const ifRegexMatch = ifRegex.exec($t);
                 if (ifRegexMatch) {
                     option.cond[ifRegexMatch[1]] = ifRegexMatch[2] || 1;
+                    return;
                 }
                 const showIfRegex = /^\s*SHOWIF\s+(\w*)\s+(\w*)/;
                 const showIfRegexMatch = showIfRegex.exec($t);
                 if (showIfRegexMatch) {
                     option.showCond[showIfRegexMatch[1]] = showIfRegexMatch[2] || 1;
+                    return;
                 }
+                option.effects.push(parseEffect($t));
             }
-            page.options.push(option);
         }
     }
 }
@@ -12563,26 +12608,44 @@ function toRows(cells) {
     }
     return results;
 }
+function loadSheets({ sheetUrl, book, batchSize, offset }) {
+    const promises = [];
+    for (let i = 0; i < batchSize; i++) {
+        const promise = axios_1.default.get(sheetUrl.replace('{ID}', `${i + offset}`))
+            .then(result => {
+            const { data: { feed: { title, entry } } } = result;
+            const [titles, ...rows] = toRows(entry);
+            for (let row of rows) {
+                processRow(row, book, title.$t);
+            }
+            return true;
+        }).catch((err) => {
+            if (err.message === "Network Error")
+                return false;
+            throw err;
+        });
+        promises.push(promise);
+    }
+    return Promise.all(promises).then(([...hadData]) => {
+        return hadData.every(x => x === true);
+    });
+}
 function loadBook(sheetUrl = DEFAULT_URL) {
     return __awaiter(this, void 0, void 0, function* () {
+        const BATCHSIZE = 5;
         const book = new game_1.GameBook();
-        let i = 1;
+        let offset = 1;
         while (true) {
-            try {
-                const result = yield axios_1.default.get(sheetUrl.replace('{ID}', `${i++}`));
-                const { data: { feed: { title, entry } } } = result;
-                console.log(result);
-                const [titles, ...rows] = toRows(entry);
-                for (let row of rows) {
-                    processRow(row, book, title.$t);
-                }
-                console.log(book);
-            }
-            catch (e) {
-                console.error(e);
+            const hadData = yield loadSheets({ sheetUrl, book, batchSize: BATCHSIZE, offset: offset });
+            offset += BATCHSIZE;
+            if (!hadData) {
                 break;
             }
+            if (offset > 50) {
+                throw new Error("Over 50 pages, or more likely loading bug");
+            }
         }
+        console.log(book);
         return book;
     });
 }

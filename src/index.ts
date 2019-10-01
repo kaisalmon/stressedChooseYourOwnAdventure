@@ -39,7 +39,7 @@ async function autorun()
   const book = await loadBook();
   const gameState = new GameState()
   gameState.book = book;
-  gameState.currentPage = Object.values(book.pages)[0];
+  gameState.setPage(Object.values(book.pages)[0]);
 
   const el = document.getElementById('main');
   if(!el) throw new Error("Cannot find main element")

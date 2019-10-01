@@ -1,20 +1,29 @@
 class GameState{
   book: GameBook
-  currentPage:GamePage
+  private _currentPage:GamePage
   state: { [id: string] : string|number; } = {}
   onUpdate:(gs:GameState)=>void;
 
+  public setPage(page: GamePage){
+    this._currentPage = page
+    for(let eff of page.effects){
+      eff.execute(this.currentPage, this)
+    }
+  }
+  public get currentPage(): GamePage {
+     return this._currentPage;
+  }
+
   public processOption(opt: GameOption){
-    const {prefix} = this.currentPage;
-    const nextPage = this.book.pages[prefix + opt.link] || this.book.pages[opt.link];
-    if(!nextPage) throw new Error("Cannot follow link "+opt.link)
-    this.currentPage = nextPage;
-    this.state = {...this.state, ...opt.state};
+    for(let eff of opt.effects){
+      eff.execute(this.currentPage, this)
+    }
     if(this.onUpdate){
       this.onUpdate(this);
     }
   }
 }
+
 class GameBook{
   pages: { [id: string] : GamePage; } = {}
 }
@@ -23,11 +32,11 @@ class GamePage{
   text: string
   prefix: string
   options: GameOption[] = []
+  effects: GameEffect[] = []
 }
 class GameOption{
   text: string
-  link: string
-  state: { [id: string] : string|number; } = {}
+  effects: GameEffect[] = []
   cond: { [id: string] : string|number; } = {}
   showCond: { [id: string] : string|number; } = {}
 
@@ -45,6 +54,24 @@ class GameOption{
   }
 }
 
+class GameEffect{
+  state: { [id: string] : string|number; } = {}
+  goto: string|undefined
+  debug: string|undefined
+
+  public execute(page:GamePage, gs:GameState){
+    if(this.goto){
+      const {prefix} = page;
+      const nextPage = gs.book.pages[prefix + this.goto] || gs.book.pages[this.goto];
+      if(!nextPage) throw new Error("Cannot follow link "+this.goto)
+      gs.setPage(nextPage)
+    }
+    gs.state = {...gs.state, ...this.state};
+    if(this.debug){
+      alert(this.debug)
+    }
+  }
+}
 
 
-export {GameState, GamePage, GameOption, GameBook};
+export {GameState, GamePage, GameOption, GameBook, GameEffect};
