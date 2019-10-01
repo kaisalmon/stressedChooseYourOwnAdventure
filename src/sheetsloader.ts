@@ -111,7 +111,8 @@ function loadSheets({sheetUrl, book, batchSize, offset}:{sheetUrl:string, book:G
       }
       return true
     }).catch((err)=>{
-      if(err.message === "Network Error")return false
+      if(err.message === "Network Error") return false
+      if(err.message.includes("400")) return false
       throw err
     });
     promises.push(promise);

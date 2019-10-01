@@ -1493,7 +1493,20 @@ module.exports = {
   trim: trim
 };
 
-},{"./helpers/bind":16,"is-buffer":27}],26:[function(require,module,exports){
+},{"./helpers/bind":16,"is-buffer":26}],26:[function(require,module,exports){
+/*!
+ * Determine if an object is a Buffer
+ *
+ * @author   Feross Aboukhadijeh <https://feross.org>
+ * @license  MIT
+ */
+
+module.exports = function isBuffer (obj) {
+  return obj != null && obj.constructor != null &&
+    typeof obj.constructor.isBuffer === 'function' && obj.constructor.isBuffer(obj)
+}
+
+},{}],27:[function(require,module,exports){
 'use strict';
 
 const createAbortError = () => {
@@ -1562,19 +1575,6 @@ delay.createWithTimers = ({clearTimeout, setTimeout}) => {
 module.exports = delay;
 // TODO: Remove this for the next major release
 module.exports.default = delay;
-
-},{}],27:[function(require,module,exports){
-/*!
- * Determine if an object is a Buffer
- *
- * @author   Feross Aboukhadijeh <https://feross.org>
- * @license  MIT
- */
-
-module.exports = function isBuffer (obj) {
-  return obj != null && obj.constructor != null &&
-    typeof obj.constructor.isBuffer === 'function' && obj.constructor.isBuffer(obj)
-}
 
 },{}],28:[function(require,module,exports){
 /*!
@@ -12598,7 +12598,7 @@ if (document.addEventListener)
 else
     window.onload = autorun;
 
-},{"./game":30,"./sheetsloader":32,"delay":26,"jquery":28}],32:[function(require,module,exports){
+},{"./game":30,"./sheetsloader":32,"delay":27,"jquery":28}],32:[function(require,module,exports){
 "use strict";
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
@@ -12713,6 +12713,8 @@ function loadSheets({ sheetUrl, book, batchSize, offset }) {
             return true;
         }).catch((err) => {
             if (err.message === "Network Error")
+                return false;
+            if (err.message.includes("400"))
                 return false;
             throw err;
         });
