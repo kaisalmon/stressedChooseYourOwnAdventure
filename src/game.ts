@@ -26,6 +26,7 @@ class GameState{
 
 class GameBook{
   pages: { [id: string] : GamePage; } = {}
+  startPage:GamePage
 }
 class GamePage{
   id: string
@@ -33,6 +34,7 @@ class GamePage{
   prefix: string
   options: GameOption[] = []
   effects: GameEffect[] = []
+  start: boolean = false;
 }
 class GameOption{
   text: string

@@ -20,29 +20,32 @@ interface GoogleSheet{
 
 function parseEffect(str:string): GameEffect{
   const effect = new GameEffect();
-  const gotoRegex = /^\s*GOTO\s+(\w*)/;
-  const gotoRegexMatch = gotoRegex.exec(str);
-  if(gotoRegexMatch){
-    effect.goto = gotoRegexMatch[1];
-    return effect;
-  }
 
-  const debugRegex = /^\s*DEBUG\s+(\w*)/;
-  const debugRegexMatch = debugRegex.exec(str);
-  if(debugRegexMatch){
-    effect.debug = debugRegexMatch[1];
-    return effect;
-  }
+  const [keyword, ...args] = str.trim().split(/\s+/);
 
-  const setRegex = /^\s*SET\s+(\w*)\s+(\w*)/;
-  const setRegexMatch = setRegex.exec(str);
-  if(setRegexMatch){
-    effect.state[setRegexMatch[1]] =  setRegexMatch[2]||1;
-    return effect;
-  }
+  if(keyword === 'GOTO') effect.goto = args[0]
+  else if(keyword === 'DEBUG') effect.debug = args[0]
+  else if(keyword === 'SET') effect.state[args[0]] = args[1]
+  else throw new Error("Could not parse effect: "+str);
 
-  throw new Error("Could not parse effect: "+str);
+  return effect;
 }
+
+function parseAndApplyOptionAttribute(opt:GameOption, str:string): void{
+  const [keyword, ...args] = str.trim().split(/\s+/);
+
+  if(keyword === 'IF') opt.cond[args[0]] = args[1]
+  else if(keyword === 'SHOWIF') opt.showCond[args[0]] = args[1]
+  else opt.effects.push(parseEffect(str));
+}
+
+function parseAndApplyPageAttribute(page:GamePage, str:string): void{
+  const [keyword, ...args] = str.trim().split(/\s+/);
+
+  if(keyword === 'START') page.start = true;
+  else page.effects.push(parseEffect(str));
+}
+
 
 function processRow(row: GoogleSheetCell[], book:GameBook, prefix:string){
   const [idCell, textCell, ...effectCells] = row;
@@ -57,7 +60,7 @@ function processRow(row: GoogleSheetCell[], book:GameBook, prefix:string){
     book.pages[pageId].prefix = prefix;
     for(let effectCell of effectCells){
       const {content:{$t}} = effectCell;
-      book.pages[pageId].effects.push(parseEffect($t));
+      parseAndApplyPageAttribute(book.pages[pageId], $t)
     }
     return;
   }else{
@@ -69,19 +72,7 @@ function processRow(row: GoogleSheetCell[], book:GameBook, prefix:string){
       option.text = optionText;
       for(let effectCell of effectCells){
         const {content:{$t}} = effectCell;
-        const ifRegex = /^\s*IF\s+(\w*)\s+(\w*)/;
-        const ifRegexMatch = ifRegex.exec($t);
-        if(ifRegexMatch){
-          option.cond[ifRegexMatch[1]] =  ifRegexMatch[2]||1;
-          return;
-        }
-        const showIfRegex = /^\s*SHOWIF\s+(\w*)\s+(\w*)/;
-        const showIfRegexMatch = showIfRegex.exec($t);
-        if(showIfRegexMatch){
-          option.showCond[showIfRegexMatch[1]] = showIfRegexMatch[2]||1;
-          return;
-        }
-        option.effects.push(parseEffect($t));
+        parseAndApplyOptionAttribute(option, $t)
       }
     }
   }
@@ -140,7 +131,10 @@ async function loadBook(sheetUrl:string=DEFAULT_URL):Promise<GameBook>{
           throw new Error("Over 50 pages, or more likely loading bug")
       }
   }
-  console.log(book)
+  const [startPage, ...otherStartPages] = Object.values(book.pages).filter(p=>p.start);
+  if(!startPage) throw new Error("No page with Start attribute")
+  if(otherStartPages.length > 0) throw new Error("More than one page with start attribute")
+  book.startPage = startPage;
   return book;
 }
 

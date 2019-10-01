@@ -12398,6 +12398,7 @@ class GamePage {
     constructor() {
         this.options = [];
         this.effects = [];
+        this.start = false;
     }
 }
 exports.GamePage = GamePage;
@@ -12497,7 +12498,7 @@ function autorun() {
         const book = yield sheetsloader_1.loadBook();
         const gameState = new game_1.GameState();
         gameState.book = book;
-        gameState.setPage(Object.values(book.pages)[0]);
+        gameState.setPage(book.startPage);
         const el = document.getElementById('main');
         if (!el)
             throw new Error("Cannot find main element");
@@ -12530,25 +12531,32 @@ const game_1 = require("./game");
 const DEFAULT_URL = 'https://spreadsheets.google.com/feeds/cells/1GpYB4WsAnJ9ATmot7agz2B1eSVgyaOuhLCkwIheyvgk/{ID}/public/full?alt=json';
 function parseEffect(str) {
     const effect = new game_1.GameEffect();
-    const gotoRegex = /^\s*GOTO\s+(\w*)/;
-    const gotoRegexMatch = gotoRegex.exec(str);
-    if (gotoRegexMatch) {
-        effect.goto = gotoRegexMatch[1];
-        return effect;
-    }
-    const debugRegex = /^\s*DEBUG\s+(\w*)/;
-    const debugRegexMatch = debugRegex.exec(str);
-    if (debugRegexMatch) {
-        effect.debug = debugRegexMatch[1];
-        return effect;
-    }
-    const setRegex = /^\s*SET\s+(\w*)\s+(\w*)/;
-    const setRegexMatch = setRegex.exec(str);
-    if (setRegexMatch) {
-        effect.state[setRegexMatch[1]] = setRegexMatch[2] || 1;
-        return effect;
-    }
-    throw new Error("Could not parse effect: " + str);
+    const [keyword, ...args] = str.trim().split(/\s+/);
+    if (keyword === 'GOTO')
+        effect.goto = args[0];
+    else if (keyword === 'DEBUG')
+        effect.debug = args[0];
+    else if (keyword === 'SET')
+        effect.state[args[0]] = args[1];
+    else
+        throw new Error("Could not parse effect: " + str);
+    return effect;
+}
+function parseAndApplyOptionAttribute(opt, str) {
+    const [keyword, ...args] = str.trim().split(/\s+/);
+    if (keyword === 'IF')
+        opt.cond[args[0]] = args[1];
+    else if (keyword === 'SHOWIF')
+        opt.showCond[args[0]] = args[1];
+    else
+        opt.effects.push(parseEffect(str));
+}
+function parseAndApplyPageAttribute(page, str) {
+    const [keyword, ...args] = str.trim().split(/\s+/);
+    if (keyword === 'START')
+        page.start = true;
+    else
+        page.effects.push(parseEffect(str));
 }
 function processRow(row, book, prefix) {
     const [idCell, textCell, ...effectCells] = row;
@@ -12562,7 +12570,7 @@ function processRow(row, book, prefix) {
         book.pages[pageId].prefix = prefix;
         for (let effectCell of effectCells) {
             const { content: { $t } } = effectCell;
-            book.pages[pageId].effects.push(parseEffect($t));
+            parseAndApplyPageAttribute(book.pages[pageId], $t);
         }
         return;
     }
@@ -12575,19 +12583,7 @@ function processRow(row, book, prefix) {
             option.text = optionText;
             for (let effectCell of effectCells) {
                 const { content: { $t } } = effectCell;
-                const ifRegex = /^\s*IF\s+(\w*)\s+(\w*)/;
-                const ifRegexMatch = ifRegex.exec($t);
-                if (ifRegexMatch) {
-                    option.cond[ifRegexMatch[1]] = ifRegexMatch[2] || 1;
-                    return;
-                }
-                const showIfRegex = /^\s*SHOWIF\s+(\w*)\s+(\w*)/;
-                const showIfRegexMatch = showIfRegex.exec($t);
-                if (showIfRegexMatch) {
-                    option.showCond[showIfRegexMatch[1]] = showIfRegexMatch[2] || 1;
-                    return;
-                }
-                option.effects.push(parseEffect($t));
+                parseAndApplyOptionAttribute(option, $t);
             }
         }
     }
@@ -12645,7 +12641,12 @@ function loadBook(sheetUrl = DEFAULT_URL) {
                 throw new Error("Over 50 pages, or more likely loading bug");
             }
         }
-        console.log(book);
+        const [startPage, ...otherStartPages] = Object.values(book.pages).filter(p => p.start);
+        if (!startPage)
+            throw new Error("No page with Start attribute");
+        if (otherStartPages.length > 0)
+            throw new Error("More than one page with start attribute");
+        book.startPage = startPage;
         return book;
     });
 }
