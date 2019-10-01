@@ -47,7 +47,7 @@ function parseAndApplyPageAttribute(page:GamePage, str:string): void{
   const [keyword, ...args] = str.trim().split(/\s+/);
 
   if(keyword === 'START') page.start = true;
-  if(keyword === 'UNTIMED') page.untimed = true;
+  else if(keyword === 'UNTIMED') page.untimed = true;
   else page.effects.push(parseEffect(str));
 }
 

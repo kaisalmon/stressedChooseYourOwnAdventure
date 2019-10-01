@@ -29,14 +29,17 @@ async function addOption(el: HTMLElement, opt:GameOption, gameState:GameState, i
 
 }
 
-async function updatePage(el: HTMLElement, gameState:GameState):Promise<void>{
-  const page = gameState.currentPage;
+async function updatePage(el: HTMLElement, gs:GameState):Promise<void>{
+  const page = gs.currentPage;
   blockInput = true
   await setText(el, page.text);
   blockInput = false
-  const defaultOption = page.getDefaultOption(gameState);
+  const defaultOption = page.getDefaultOption(gs);
   for(let opt of page.options){
-    addOption(el, opt, gameState, defaultOption===opt)
+    addOption(el, opt, gs, defaultOption===opt)
+  }
+  if(!gs.time || !gs.stress_scale || gs.currentPage.untimed || !gs.currentPage.getDefaultOption(gs)){
+    $('.pie').fadeOut();
   }
 }
 
@@ -68,7 +71,7 @@ async function autorun()
       updatePage(el, gs)
     }
     gameState.onTimerUpdate = (gs: GameState, t:number) => {
-      if(!gs.time || !gs.stress_scale || !gs.currentPage.getDefaultOption(gs)){
+      if(!gs.time || !gs.stress_scale || gs.currentPage.untimed || !gs.currentPage.getDefaultOption(gs)){
         $('.pie').fadeOut();
         return;
       }

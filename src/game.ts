@@ -21,7 +21,7 @@ class GameState{
       eff.execute(this.currentPage, this)
     }
     if(this.intervalId) clearInterval(this.intervalId)
-    if((this.time && this.stress_scale)){
+    if(this.time && this.stress_scale && !page.untimed){
       this.elapsedTime = this.stress * this.stress_scale
       this.intervalId = setInterval(()=>{
         this.elapsedTime += TIMER_RES;

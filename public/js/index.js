@@ -12379,7 +12379,7 @@ class GameState {
         }
         if (this.intervalId)
             clearInterval(this.intervalId);
-        if ((this.time && this.stress_scale)) {
+        if (this.time && this.stress_scale && !page.untimed) {
             this.elapsedTime = this.stress * this.stress_scale;
             this.intervalId = setInterval(() => {
                 this.elapsedTime += TIMER_RES;
@@ -12422,6 +12422,7 @@ class GamePage {
         this.options = [];
         this.effects = [];
         this.start = false;
+        this.untimed = false;
     }
     getDefaultOption(gs) {
         const options = this.options
@@ -12525,15 +12526,18 @@ function addOption(el, opt, gameState, isDefault) {
         });
     });
 }
-function updatePage(el, gameState) {
+function updatePage(el, gs) {
     return __awaiter(this, void 0, void 0, function* () {
-        const page = gameState.currentPage;
+        const page = gs.currentPage;
         blockInput = true;
         yield setText(el, page.text);
         blockInput = false;
-        const defaultOption = page.getDefaultOption(gameState);
+        const defaultOption = page.getDefaultOption(gs);
         for (let opt of page.options) {
-            addOption(el, opt, gameState, defaultOption === opt);
+            addOption(el, opt, gs, defaultOption === opt);
+        }
+        if (!gs.time || !gs.stress_scale || gs.currentPage.untimed || !gs.currentPage.getDefaultOption(gs)) {
+            $('.pie').fadeOut();
         }
     });
 }
@@ -12564,7 +12568,7 @@ function autorun() {
                 updatePage(el, gs);
             };
             gameState.onTimerUpdate = (gs, t) => {
-                if (!gs.time || !gs.stress_scale || !gs.currentPage.getDefaultOption(gs)) {
+                if (!gs.time || !gs.stress_scale || gs.currentPage.untimed || !gs.currentPage.getDefaultOption(gs)) {
                     $('.pie').fadeOut();
                     return;
                 }
@@ -12643,6 +12647,8 @@ function parseAndApplyPageAttribute(page, str) {
     const [keyword, ...args] = str.trim().split(/\s+/);
     if (keyword === 'START')
         page.start = true;
+    else if (keyword === 'UNTIMED')
+        page.untimed = true;
     else
         page.effects.push(parseEffect(str));
 }
